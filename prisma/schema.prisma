@@ -1,0 +1,23 @@
+// Prisma schema for the documents project
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Document {
+  id           String   @id @default(uuid())
+  filename     String
+  size         Int?
+  mime_type    String?
+  s3_url       String?  @db.Text
+  s3_key       String?  @db.Text
+  local_path   String?  @db.Text
+  extracted_text String? @db.Text
+  analysis     Json?
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+}

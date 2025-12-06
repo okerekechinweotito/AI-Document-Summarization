@@ -1,0 +1,142 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "String Analysis API",
+    "version": "1.0.0",
+    "description": "API for analyzing, storing, and querying string data."
+  },
+  "paths": {
+    "/documents/upload": {
+      "post": {
+        "summary": "Upload a PDF or DOCX document (max 5MB)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": { "type": "string", "format": "binary" }
+                },
+                "required": ["file"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Document uploaded and stored.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Document_GET" }
+              }
+            }
+          },
+          "400": { "description": "Invalid file type or size exceeded." },
+          "500": { "description": "Internal server error." }
+        }
+      }
+    },
+    "/documents/{id}/analyze": {
+      "post": {
+        "summary": "Analyze a document with an LLM.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LLM analysis returned.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AnalyzeResponse" },
+                "examples": {
+                  "sample": {
+                    "summary": "Example analysis",
+                    "value": {
+                      "summary": "A short summary...",
+                      "document_type": "invoice",
+                      "attributes": {
+                        "date": "2025-01-01",
+                        "total_amount": "123.45"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "description": "Document not found." },
+          "409": { "description": "Document text not extracted yet." },
+          "500": { "description": "Internal server error." }
+        }
+      }
+    },
+    "/documents/{id}": {
+      "get": {
+        "summary": "Get document metadata, extracted text, and LLM analysis.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document data returned.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Document_GET" }
+              }
+            }
+          },
+          "404": { "description": "Document not found." },
+          "500": { "description": "Internal server error." }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "OpenRouterAPIKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Authorization",
+        "description": "Pass your OpenRouter API key in the Authorization header as Bearer <key> when invoking LLM-related endpoints in the API docs. In practice, the server uses its own key (OPENROUTER_API_KEY) for calls to OpenRouter."
+      }
+    },
+    "schemas": {
+      "AnalyzeResponse": {
+        "type": "object",
+        "properties": {
+          "summary": { "type": "string" },
+          "document_type": { "type": "string" },
+          "attributes": { "type": "object", "additionalProperties": true }
+        }
+      },
+      "Document_GET": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "filename": { "type": "string" },
+          "size": { "type": "integer" },
+          "mime_type": { "type": "string" },
+          "s3_url": { "type": "string" },
+          "s3_key": { "type": "string" },
+          "s3_signed_url": { "type": "string" },
+          "local_path": { "type": "string" },
+          "extracted_text": { "type": "string" },
+          "analysis": { "$ref": "#/components/schemas/AnalyzeResponse" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  }
+}
