@@ -77,18 +77,26 @@ export const storeFileS3 = async (
 };
 
 export const storeFile = async (fileBuffer: Buffer, filename: string) => {
-  const localPath = await storeFileLocally(fileBuffer, filename);
+  let localPath: string | undefined;
   let s3Url: string | undefined;
   let s3Key: string | undefined;
-  try {
-    if (s3Client && S3_BUCKET) {
+
+  // If S3 client is configured, try uploading to S3 first and avoid
+  // writing a local copy when S3 upload succeeds.
+  if (s3Client && S3_BUCKET) {
+    try {
       const stored = await storeFileS3(fileBuffer, filename);
       s3Url = stored.s3Url;
       s3Key = stored.key;
+      return { localPath, s3Url, s3Key };
+    } catch (error) {
+      customLogger(error, "storeFile: s3 upload failed, falling back to local");
+      // fall-through to store locally
     }
-  } catch (error) {
-    customLogger(error, "storeFile: s3 upload failed, falling back to local");
   }
+
+  // No S3 client configured or S3 upload failed — store locally.
+  localPath = await storeFileLocally(fileBuffer, filename);
   return { localPath, s3Url, s3Key };
 };
 export const getPresignedUrl = async (key: string, expiresIn = 60 * 60) => {

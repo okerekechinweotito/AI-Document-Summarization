@@ -1,4 +1,3 @@
-import { z } from "zod";
 import { createFactory } from "hono/factory";
 import { customLogger } from "../../shared/utils/logger.ts";
 import * as docService from "./document.service.ts";
@@ -82,8 +81,32 @@ export const upload_document = factory.createHandlers(async (c) => {
       );
     }
 
+    // Build nested response shape: file_info, metadata, analysis
+    const file_info = {
+      id: doc.id,
+      filename: doc.filename,
+      size: doc.size,
+      mime_type: doc.mime_type,
+      s3_url: doc.s3_url,
+      s3_key: (doc as any).s3_key,
+      local_path: doc.local_path,
+      created_at: doc.created_at,
+      updated_at: doc.updated_at,
+    };
+
+    const metadata = {
+      extracted_text: (doc as any).extracted_text,
+    };
+
+    let analysis = (doc as any).analysis ?? undefined;
+    if (analysis) {
+      (analysis as any).mime_type = doc.mime_type;
+    }
+
+    const responseData = { file_info, metadata, analysis };
+
     return c.json(
-      formatSuccess(doc as Document_GET, { text: "Created" }, 201),
+      formatSuccess(responseData, { text: "Created" }, 201),
       201
     );
   } catch (error) {
@@ -146,8 +169,30 @@ export const analyze_document = factory.createHandlers(async (c) => {
     const aiResult = await llmService.analyzeTextWithLLM(doc.extracted_text!);
     customLogger({ aiResult }, "analyze_document:aiResult");
     await docService.saveAnalysis(id, aiResult);
+
+    // Build nested response shape: file_info, metadata, analysis
+    const file_info = {
+      id: doc.id,
+      filename: doc.filename,
+      size: doc.size,
+      mime_type: doc.mime_type,
+      s3_url: doc.s3_url,
+      s3_key: (doc as any).s3_key,
+      local_path: doc.local_path,
+      created_at: doc.created_at,
+      updated_at: doc.updated_at,
+    };
+
+    const metadata = {
+      extracted_text: doc.extracted_text,
+    };
+
+    const analysis = { ...aiResult, mime_type: doc.mime_type } as any;
+
+    const responseData = { file_info, metadata, analysis };
+
     return c.json(
-      formatSuccess(aiResult, { text: "Analysis complete" }, 200),
+      formatSuccess(responseData, { text: "Analysis complete" }, 200),
       200
     );
   } catch (error) {
@@ -221,8 +266,37 @@ export const get_document = factory.createHandlers(async (c) => {
       }
     }
 
+    // Structure the response into file_info, metadata, and analysis sections
+    const file_info = {
+      id: doc.id,
+      filename: doc.filename,
+      size: doc.size,
+      mime_type: doc.mime_type,
+      s3_url: doc.s3_url,
+      s3_key: (doc as any).s3_key,
+      local_path: doc.local_path,
+      created_at: doc.created_at,
+      updated_at: doc.updated_at,
+    };
+
+    const metadata = {
+      extracted_text: doc.extracted_text,
+    };
+
+    // ensure analysis payload includes mime_type for client convenience
+    let analysis = doc.analysis ?? undefined;
+    if (analysis) {
+      (analysis as any).mime_type = doc.mime_type;
+    }
+
+    const responseData = {
+      file_info,
+      metadata,
+      analysis,
+    };
+
     return c.json(
-      formatSuccess(doc, { text: "Retrieval Successful" }, 200),
+      formatSuccess(responseData, { text: "Retrieval Successful" }, 200),
       200
     );
   } catch (error) {

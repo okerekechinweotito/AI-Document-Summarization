@@ -25,10 +25,12 @@
         },
         "responses": {
           "201": {
-            "description": "Document uploaded and stored.",
+            "description": "Document uploaded and stored. Response contains `file_info`, `metadata`, and `analysis` inside `data`.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/Document_GET" }
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessDocumentDetail"
+                }
               }
             }
           },
@@ -50,19 +52,35 @@
         ],
         "responses": {
           "200": {
-            "description": "LLM analysis returned.",
+            "description": "LLM analysis returned. Response contains `file_info`, `metadata`, and `analysis` inside `data`.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/AnalyzeResponse" },
+                "schema": { "$ref": "#/components/schemas/SuccessDocumentDetail" },
                 "examples": {
                   "sample": {
-                    "summary": "Example analysis",
+                    "summary": "Example analysis response",
                     "value": {
-                      "summary": "A short summary...",
-                      "document_type": "invoice",
-                      "attributes": {
-                        "date": "2025-01-01",
-                        "total_amount": "123.45"
+                      "statusCode": 200,
+                      "message": { "text": "Analysis complete" },
+                      "data": {
+                        "file_info": {
+                          "id": "123e4567-e89b-12d3-a456-426614174000",
+                          "filename": "invoice.pdf",
+                          "size": 23456,
+                          "mime_type": "application/pdf",
+                          "s3_url": "http://localhost:9000/documents/invoice.pdf",
+                          "s3_key": "invoice.pdf",
+                          "local_path": null,
+                          "created_at": "2025-12-07T13:23:18.600Z",
+                          "updated_at": "2025-12-07T13:23:18.600Z"
+                        },
+                        "metadata": { "extracted_text": "This invoice is for..." },
+                        "analysis": {
+                          "summary": "Short summary of the document",
+                          "document_type": "invoice",
+                          "attributes": { "date": "2025-01-01", "total_amount": "123.45" },
+                          "mime_type": "application/pdf"
+                        }
                       }
                     }
                   }
@@ -89,10 +107,12 @@
         ],
         "responses": {
           "200": {
-            "description": "Document data returned.",
+            "description": "Document data returned. Response contains `file_info`, `metadata`, and `analysis` inside `data`.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/Document_GET" }
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessDocumentDetail"
+                }
               }
             }
           },
@@ -117,7 +137,11 @@
         "properties": {
           "summary": { "type": "string" },
           "document_type": { "type": "string" },
-          "attributes": { "type": "object", "additionalProperties": true }
+          "attributes": { "type": "object", "additionalProperties": true },
+          "mime_type": {
+            "type": "string",
+            "description": "Media MIME type of the original document (e.g. application/pdf)"
+          }
         }
       },
       "Document_GET": {
@@ -129,12 +153,45 @@
           "mime_type": { "type": "string" },
           "s3_url": { "type": "string" },
           "s3_key": { "type": "string" },
-          "s3_signed_url": { "type": "string" },
           "local_path": { "type": "string" },
           "extracted_text": { "type": "string" },
           "analysis": { "$ref": "#/components/schemas/AnalyzeResponse" },
           "created_at": { "type": "string", "format": "date-time" },
           "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "DocumentDetail": {
+        "type": "object",
+        "properties": {
+          "file_info": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "filename": { "type": "string" },
+              "size": { "type": "integer" },
+              "mime_type": { "type": "string" },
+              "s3_url": { "type": "string" },
+              "s3_key": { "type": "string" },
+              "local_path": { "type": "string" },
+              "created_at": { "type": "string", "format": "date-time" },
+              "updated_at": { "type": "string", "format": "date-time" }
+            }
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "extracted_text": { "type": "string" }
+            }
+          },
+          "analysis": { "$ref": "#/components/schemas/AnalyzeResponse" }
+        }
+      },
+      "SuccessDocumentDetail": {
+        "type": "object",
+        "properties": {
+          "statusCode": { "type": "integer" },
+          "message": { "type": "object" },
+          "data": { "$ref": "#/components/schemas/DocumentDetail" }
         }
       }
     }

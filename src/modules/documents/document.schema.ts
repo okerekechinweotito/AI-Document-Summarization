@@ -21,7 +21,9 @@ export const documentGetSchema = z.object({
   mime_type: z.string(),
   s3_url: z.string().optional(),
   s3_key: z.string().optional(),
-  s3_signed_url: z.string().optional(),
+  // s3_signed_url removed from schema/docs because signed URLs are not
+  // reliably returned by the API. Use `s3_url`/`s3_key` and `getPresignedUrl`
+  // server-side if needed.
   local_path: z.string().optional(),
   extracted_text: z.string().optional(),
   analysis: analyzeResponseSchema.optional(),

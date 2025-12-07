@@ -1,5 +1,5 @@
 
-# AI Document Summarization Scaffold
+# AI Document Summarization + Metadata Extraction Workflow
 
 ## Prerequisites
 

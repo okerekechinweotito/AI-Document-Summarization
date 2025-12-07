@@ -1,6 +1,5 @@
 import { customLogger } from "../utils/logger.ts";
 import { analyzeResponseSchema } from "../../modules/documents/document.schema.ts";
-import { z } from "zod";
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_URL =

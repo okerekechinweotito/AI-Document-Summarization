@@ -1,5 +1,5 @@
-import app from "./app.ts";
 import "dotenv/config";
+import app from "./app.ts";
 import { customLogger } from "./shared/utils/logger.ts";
 
 const port = Number(process.env.PORT) || 3000;
@@ -19,4 +19,3 @@ process.once("SIGTERM", () => {
     process.exit(1);
   }
 });
-

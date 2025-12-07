@@ -24,7 +24,7 @@ app.get("/", (c) => {
           openapi: `${baseUrl}/openapi`,
         },
       },
-      { text: "Welcome to the User Service API" },
+      { text: "AI Document Summarization API" },
       200
     ),
     200
