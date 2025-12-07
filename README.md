@@ -80,3 +80,67 @@ Notes:
 - The app writes uploads to the local `uploads/` directory by default (no `FILE_STORAGE_PATH` env var is required).
 - Copy `.env.example` to `.env` and fill in the values before running the app.
 
+
+## Using MinIO (local S3) with Docker
+
+If you want to test S3-compatible storage locally, MinIO is a lightweight server that's compatible with the AWS S3 API. The project favors uploading to S3 when S3 env vars are present, and falls back to the local `uploads/` directory if the S3 upload fails.
+
+Below is a minimal `docker-compose.yml` you can use to run MinIO locally (ports `9000` for the S3 API and `9001` for the MinIO Console):
+
+```yaml
+version: "3.8"
+services:
+	minio:
+		image: minio/minio:latest
+		container_name: minio
+		command: server /data --console-address ":9001"
+		ports:
+			- "9000:9000"
+			- "9001:9001"
+		environment:
+			MINIO_ROOT_USER: minioadmin
+			MINIO_ROOT_PASSWORD: minioadmin123
+		volumes:
+			- ./minio-data:/data
+		restart: unless-stopped
+```
+
+Start MinIO with:
+
+```sh
+docker-compose up -d
+```
+
+Open the MinIO Console at: `http://localhost:9001`
+Login with the default credentials shown above:
+
+- Username: `minioadmin`
+- Password: `minioadmin123`
+
+Create a bucket (for example `documents`) using the Console UI or the `mc` CLI. Example using the `mc` client locally (install `mc` from https://min.io/docs/minio/linux/reference/minio-mc.html):
+
+```sh
+mc alias set myminio http://localhost:9000 minioadmin minioadmin123
+mc mb myminio/documents
+```
+
+Environment variables to set in your `.env` when using MinIO:
+
+```
+S3_ENDPOINT=http://localhost:9000
+S3_BUCKET=documents
+S3_ACCESS_KEY_ID=minioadmin
+S3_SECRET_ACCESS_KEY=minioadmin123
+S3_REGION=us-east-1
+# Optional: expose a public base URL (useful when serving files directly)
+# S3_PUBLIC_URL=http://localhost:9000
+```
+
+Notes and tips:
+
+- When these S3 env vars are present the app will attempt to upload files to the configured S3 bucket. If the S3 upload fails the app will store files under the local `uploads/` directory as a fallback.
+- The repository includes helper code that builds a browser-friendly `s3_link` (useful for opening objects in the MinIO Console). The link format may differ depending on your MinIO configuration.
+- If you want pre-signed URLs instead of direct S3 links, consider enabling presigning in the storage service or calling the S3 presigner manually; this project currently documents and returns `s3_url` and a convenience `s3_link` (console/browser link), but does not expose presigned URLs by default.
+
+After setting `.env` and starting MinIO, restart the app and verify uploads in the MinIO Console or in the `uploads/` directory.
+
