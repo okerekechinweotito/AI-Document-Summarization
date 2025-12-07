@@ -39,10 +39,8 @@ export const upload_document = factory.createHandlers(async (c) => {
         }
         const arrayBuffer = await fileEntry.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
-        if (buffer.length > MAX_BYTES) {
-          results.push({ filename, error: "File size exceeds 5MB" });
-          continue;
-        }
+        // Validate MIME/type first so unsupported file types (eg. MP4)
+        // return a type error rather than a size error.
         if (
           ![
             "application/pdf",
@@ -50,6 +48,10 @@ export const upload_document = factory.createHandlers(async (c) => {
           ].includes(mime)
         ) {
           results.push({ filename, error: "File must be PDF or DOCX" });
+          continue;
+        }
+        if (buffer.length > MAX_BYTES) {
+          results.push({ filename, error: "File size exceeds 5MB" });
           continue;
         }
 
@@ -131,6 +133,17 @@ export const upload_document = factory.createHandlers(async (c) => {
           error: (err as any)?.message || String(err),
         });
       }
+    }
+
+    // If any file had an error, return an error status and include per-file results
+    const hasErrors = results.some((r) => Boolean((r as any).error));
+    if (hasErrors) {
+      return c.json(
+        formatError({ text: "One or more files failed to upload" }, 400, {
+          results,
+        }),
+        400
+      );
     }
 
     return c.json(formatSuccess(results, { text: "Uploaded" }, 201), 201);
