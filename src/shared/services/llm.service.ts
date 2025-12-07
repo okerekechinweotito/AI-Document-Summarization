@@ -4,7 +4,8 @@ import { analyzeResponseSchema } from "../../modules/documents/document.schema.t
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_URL =
   process.env.OPENROUTER_URL || "https://api.openrouter.ai/v1/chat/completions";
-const MODEL = process.env.OPENROUTER_MODEL || "gpt-4o-mini";
+const MODEL = process.env.OPENROUTER_MODEL || "gpt-4o-mini"; 
+//google/gemini-2.5-flash-image
 
 export const analyzeTextWithLLM = async (text: string) => {
   if (!OPENROUTER_API_KEY) {

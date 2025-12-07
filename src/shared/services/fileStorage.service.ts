@@ -140,3 +140,35 @@ export const getFileBuffer = async (localPath?: string, s3Url?: string) => {
   }
   throw new Error("Could not read file from local or S3");
 };
+
+export const getS3BrowserLink = (key?: string) => {
+  if (!key) return undefined;
+  try {
+    // If S3_PUBLIC_URL is set and looks like a S3 endpoint, prefer using it
+    if (S3_PUBLIC_URL) {
+      // If public URL uses port 9000 (typical MinIO), guess console at 9001
+      if (S3_PUBLIC_URL.includes(":9000")) {
+        return (
+          S3_PUBLIC_URL.replace(":9000", ":9001") +
+          `/browser/${S3_BUCKET}/${encodeURIComponent(key)}`
+        );
+      }
+      return `${S3_PUBLIC_URL}/${encodeURIComponent(key)}`;
+    }
+
+    // If S3_ENDPOINT is set and looks like localhost:9000, guess console
+    if (S3_ENDPOINT) {
+      if (S3_ENDPOINT.includes(":9000")) {
+        // replace port 9000 with 9001 for console
+        return (
+          S3_ENDPOINT.replace(":9000", ":9001") +
+          `/browser/${S3_BUCKET}/${encodeURIComponent(key)}`
+        );
+      }
+      return `${S3_ENDPOINT}/${S3_BUCKET}/${encodeURIComponent(key)}`;
+    }
+  } catch (err) {
+    customLogger(err, "getS3BrowserLink");
+  }
+  return undefined;
+};

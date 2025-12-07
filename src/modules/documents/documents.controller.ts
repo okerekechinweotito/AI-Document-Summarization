@@ -21,94 +21,119 @@ export const upload_document = factory.createHandlers(async (c) => {
       );
     }
     const form = await c.req.formData();
-    const file = form.get("file") as unknown as File | null;
-    if (!file)
+    const files = (form.getAll("file") as unknown as File[]) || [];
+    if (!files || files.length === 0)
       return c.json(formatError({ text: "file field is required" }, 400), 400);
 
-    const filename = file.name;
-    let mime = file.type || "";
-    if (!mime) {
-      // infer from filename extension
-      if (filename.endsWith(".pdf")) mime = "application/pdf";
-      if (filename.endsWith(".docx"))
-        mime =
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-    }
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    if (buffer.length > MAX_BYTES) {
-      return c.json(formatError({ text: "File size exceeds 5MB" }, 400), 400);
-    }
-    // validate file types
-    if (
-      ![
-        "application/pdf",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      ].includes(mime)
-    ) {
-      return c.json(
-        formatError({ text: "File must be PDF or DOCX" }, 400),
-        400
-      );
-    }
-    // store file
-    const stored = await fileStorage.storeFile(
-      buffer,
-      `${Date.now()}-${filename}`
-    );
-    // create DB record
-    const doc = await docService.createDocumentRecord({
-      filename,
-      size: buffer.length,
-      mime_type: mime,
-      s3_url: stored.s3Url,
-      s3_key: stored.s3Key,
-      local_path: stored.localPath,
-    });
-    // extract text synchronously so the response includes extracted_text
-    try {
-      const text = await textExtraction.extractText(buffer, mime);
-      await docService.saveExtractedText(doc.id, text);
-      (doc as any).extracted_text = text;
-    } catch (error) {
-      // log the extraction error but still return the created record without extracted_text
-      customLogger(error, "upload_document:extraction");
-      return c.json(
-        formatError({ text: "File uploaded but text extraction failed" }, 500, {
-          error: (error as any)?.message ?? String(error),
-        }),
-        500
-      );
+    const results: any[] = [];
+
+    for (const fileEntry of files) {
+      try {
+        const filename = fileEntry.name;
+        let mime = fileEntry.type || "";
+        if (!mime) {
+          if (filename.endsWith(".pdf")) mime = "application/pdf";
+          if (filename.endsWith(".docx"))
+            mime =
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        }
+        const arrayBuffer = await fileEntry.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        if (buffer.length > MAX_BYTES) {
+          results.push({ filename, error: "File size exceeds 5MB" });
+          continue;
+        }
+        if (
+          ![
+            "application/pdf",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          ].includes(mime)
+        ) {
+          results.push({ filename, error: "File must be PDF or DOCX" });
+          continue;
+        }
+
+        // store file (S3-first)
+        const stored = await fileStorage.storeFile(
+          buffer,
+          `${Date.now()}-${filename}`
+        );
+        // create DB record
+        const doc = await docService.createDocumentRecord({
+          filename,
+          size: buffer.length,
+          mime_type: mime,
+          s3_url: stored.s3Url,
+          s3_key: stored.s3Key,
+          local_path: stored.localPath,
+        });
+        // extract text synchronously so the response includes extracted_text
+        try {
+          const text = await textExtraction.extractText(buffer, mime);
+          await docService.saveExtractedText(doc.id, text);
+          (doc as any).extracted_text = text;
+        } catch (error) {
+          // log the extraction error but still return the created record without extracted_text
+          customLogger(error, "upload_document:extraction");
+          return c.json(
+            formatError(
+              { text: "File uploaded but text extraction failed" },
+              500,
+              {
+                error: (error as any)?.message ?? String(error),
+              }
+            ),
+            500
+          );
+        }
+
+        // attempt extraction
+        try {
+          const text = await textExtraction.extractText(buffer, mime);
+          await docService.saveExtractedText(doc.id, text);
+          (doc as any).extracted_text = text;
+        } catch (err) {
+          customLogger(err, "upload_document:extraction");
+        }
+
+        // build per-file response
+        const s3Link = stored.s3Key
+          ? fileStorage.getS3BrowserLink(stored.s3Key)
+          : undefined;
+        const file_info = {
+          id: doc.id,
+          filename: doc.filename,
+          size: doc.size,
+          mime_type: doc.mime_type,
+          s3_url: doc.s3_url,
+          s3_key: (doc as any).s3_key,
+          s3_link: s3Link,
+          local_path: doc.local_path,
+          created_at: doc.created_at,
+          updated_at: doc.updated_at,
+        };
+
+        const metadata = {
+          extracted_text: (doc as any).extracted_text,
+          extracted_metadata:
+            (doc as any).analysis && (doc as any).analysis.attributes
+              ? (doc as any).analysis.attributes
+              : undefined,
+        };
+
+        let analysis = (doc as any).analysis ?? undefined;
+
+        results.push({ file_info, metadata, analysis });
+      } catch (err) {
+        customLogger(err, "upload_document:per-file");
+        results.push({
+          filename: (fileEntry as any)?.name || "unknown",
+          error: (err as any)?.message || String(err),
+        });
+      }
     }
 
-    // Build nested response shape: file_info, metadata, analysis
-    const file_info = {
-      id: doc.id,
-      filename: doc.filename,
-      size: doc.size,
-      mime_type: doc.mime_type,
-      s3_url: doc.s3_url,
-      s3_key: (doc as any).s3_key,
-      local_path: doc.local_path,
-      created_at: doc.created_at,
-      updated_at: doc.updated_at,
-    };
-
-    const metadata = {
-      extracted_text: (doc as any).extracted_text,
-    };
-
-    let analysis = (doc as any).analysis ?? undefined;
-    if (analysis) {
-      (analysis as any).mime_type = doc.mime_type;
-    }
-
-    const responseData = { file_info, metadata, analysis };
-
-    return c.json(
-      formatSuccess(responseData, { text: "Created" }, 201),
-      201
-    );
+    return c.json(formatSuccess(results, { text: "Uploaded" }, 201), 201);
   } catch (error) {
     customLogger(error, "upload_document");
     const msg = (error && (error as any).message) || String(error);
@@ -123,6 +148,40 @@ export const upload_document = factory.createHandlers(async (c) => {
         503
       );
     }
+    return c.json(formatError({ text: "Something went wrong" }, 500), 500);
+  }
+});
+export const list_documents = factory.createHandlers(async (c) => {
+  try {
+    const docs = await docService.listDocuments();
+
+    const items = docs.map((doc) => {
+      const file_info = {
+        id: doc.id,
+        filename: doc.filename,
+        size: doc.size,
+        mime_type: doc.mime_type,
+        s3_url: doc.s3_url,
+        s3_key: (doc as any).s3_key,
+        local_path: doc.local_path,
+        created_at: doc.created_at,
+        updated_at: doc.updated_at,
+      };
+
+      const metadata = {
+        extracted_text: doc.extracted_text,
+        extracted_metadata:
+          (doc.analysis && (doc.analysis as any).attributes) || undefined,
+      };
+
+      let analysis = doc.analysis ?? undefined;
+
+      return { file_info, metadata, analysis };
+    });
+
+    return c.json(formatSuccess(items, { text: "List retrieved" }, 200), 200);
+  } catch (error) {
+    customLogger(error, "list_documents");
     return c.json(formatError({ text: "Something went wrong" }, 500), 500);
   }
 });
@@ -185,9 +244,13 @@ export const analyze_document = factory.createHandlers(async (c) => {
 
     const metadata = {
       extracted_text: doc.extracted_text,
+      extracted_metadata:
+        aiResult?.attributes ??
+        (doc.analysis && (doc.analysis as any).attributes) ??
+        undefined,
     };
 
-    const analysis = { ...aiResult, mime_type: doc.mime_type } as any;
+    const analysis = { ...aiResult } as any;
 
     const responseData = { file_info, metadata, analysis };
 
@@ -281,13 +344,11 @@ export const get_document = factory.createHandlers(async (c) => {
 
     const metadata = {
       extracted_text: doc.extracted_text,
+      extracted_metadata:
+        (doc.analysis && (doc.analysis as any).attributes) || undefined,
     };
 
-    // ensure analysis payload includes mime_type for client convenience
     let analysis = doc.analysis ?? undefined;
-    if (analysis) {
-      (analysis as any).mime_type = doc.mime_type;
-    }
 
     const responseData = {
       file_info,

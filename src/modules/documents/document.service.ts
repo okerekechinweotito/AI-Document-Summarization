@@ -104,3 +104,27 @@ export const saveAnalysis = async (id: string, analysis: AnalyzeResponse) => {
     throw error;
   }
 };
+
+export const listDocuments = async (): Promise<Document_GET[]> => {
+  try {
+    const docs = await prisma.document.findMany({
+      orderBy: { created_at: "desc" },
+    });
+    return docs.map((doc) => ({
+      id: doc.id,
+      filename: doc.filename,
+      size: doc.size ?? 0,
+      mime_type: doc.mime_type ?? "",
+      s3_url: doc.s3_url ?? undefined,
+      s3_key: doc.s3_key ?? undefined,
+      local_path: doc.local_path ?? undefined,
+      extracted_text: doc.extracted_text ?? undefined,
+      analysis: doc.analysis ?? undefined,
+      created_at: doc.created_at.toISOString(),
+      updated_at: doc.updated_at ? doc.updated_at.toISOString() : undefined,
+    }));
+  } catch (error) {
+    customLogger(error, "listDocuments:prisma");
+    throw error;
+  }
+};

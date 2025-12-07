@@ -1,9 +1,9 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "String Analysis API",
+    "title": "AI Document Summarization API",
     "version": "1.0.0",
-    "description": "API for analyzing, storing, and querying string data."
+    "description": "API for uploading documents, extracting text, and analyzing with LLMs."
   },
   "paths": {
     "/documents/upload": {
@@ -16,7 +16,10 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "file": { "type": "string", "format": "binary" }
+                  "file": {
+                    "type": "array",
+                    "items": { "type": "string", "format": "binary" }
+                  }
                 },
                 "required": ["file"]
               }
@@ -25,11 +28,19 @@
         },
         "responses": {
           "201": {
-            "description": "Document uploaded and stored. Response contains `file_info`, `metadata`, and `analysis` inside `data`.",
+            "description": "Documents uploaded and stored. Response contains an array of `{file_info, metadata, analysis}` in `data`.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SuccessDocumentDetail"
+                  "type": "object",
+                  "properties": {
+                    "statusCode": { "type": "integer" },
+                    "message": { "type": "object" },
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/DocumentDetail" }
+                    }
+                  }
                 }
               }
             }
@@ -55,7 +66,9 @@
             "description": "LLM analysis returned. Response contains `file_info`, `metadata`, and `analysis` inside `data`.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/SuccessDocumentDetail" },
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessDocumentDetail"
+                },
                 "examples": {
                   "sample": {
                     "summary": "Example analysis response",
@@ -74,12 +87,21 @@
                           "created_at": "2025-12-07T13:23:18.600Z",
                           "updated_at": "2025-12-07T13:23:18.600Z"
                         },
-                        "metadata": { "extracted_text": "This invoice is for..." },
+                        "metadata": {
+                          "extracted_text": "This invoice is for...",
+                          "extracted_metadata": {
+                            "date": "2025-01-01",
+                            "sender": "ACME Corp",
+                            "total_amount": "123.45"
+                          }
+                        },
                         "analysis": {
                           "summary": "Short summary of the document",
                           "document_type": "invoice",
-                          "attributes": { "date": "2025-01-01", "total_amount": "123.45" },
-                          "mime_type": "application/pdf"
+                          "attributes": {
+                            "date": "2025-01-01",
+                            "total_amount": "123.45"
+                          }
                         }
                       }
                     }
@@ -120,6 +142,31 @@
           "500": { "description": "Internal server error." }
         }
       }
+    },
+    "/documents": {
+      "get": {
+        "summary": "List all uploaded documents with file info, metadata, and analysis.",
+        "responses": {
+          "200": {
+            "description": "List of documents returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": { "type": "integer" },
+                    "message": { "type": "object" },
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/DocumentDetail" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -137,13 +184,10 @@
         "properties": {
           "summary": { "type": "string" },
           "document_type": { "type": "string" },
-          "attributes": { "type": "object", "additionalProperties": true },
-          "mime_type": {
-            "type": "string",
-            "description": "Media MIME type of the original document (e.g. application/pdf)"
-          }
+          "attributes": { "type": "object", "additionalProperties": true }
         }
       },
+
       "Document_GET": {
         "type": "object",
         "properties": {
@@ -151,6 +195,7 @@
           "filename": { "type": "string" },
           "size": { "type": "integer" },
           "mime_type": { "type": "string" },
+          "s3_link": { "type": "string" },
           "s3_url": { "type": "string" },
           "s3_key": { "type": "string" },
           "local_path": { "type": "string" },
@@ -180,7 +225,11 @@
           "metadata": {
             "type": "object",
             "properties": {
-              "extracted_text": { "type": "string" }
+              "extracted_text": { "type": "string" },
+              "extracted_metadata": {
+                "type": "object",
+                "additionalProperties": true
+              }
             }
           },
           "analysis": { "$ref": "#/components/schemas/AnalyzeResponse" }

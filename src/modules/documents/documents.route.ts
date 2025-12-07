@@ -6,6 +6,7 @@ import { documentIdParam } from "./document.schema.ts";
 const router = new Hono();
 
 router.post("/upload", ...docController.upload_document);
+router.get("/", ...docController.list_documents);
 router.post(
   "/:id/analyze",
   zValidator("param", documentIdParam),
