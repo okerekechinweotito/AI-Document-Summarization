@@ -44,7 +44,7 @@ app.get(
   "/scalar",
   Scalar({
     url: "/openapi",
-    theme: "purple",
+    theme: "moon",
     pageTitle: "API Docs",
   })
 );
